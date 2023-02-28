@@ -1,3 +1,9 @@
+import gym
+from gym import spaces
+import random
+import numpy as np
+import copy
+import matplotlib.pyplot as plt
 class Grid(gym.Env):
     metadata = {'render.modes': ['console']}
     # action id
@@ -10,16 +16,16 @@ class Grid(gym.Env):
     XPYM = 6 # x plus, y minus
     XPYP = 7 # x plus, y plus
     
-    def __init__(self, x_size=5, y_size=5, fov_x=3, fov_y=3):
+    def __init__(self, x_size=5,n_agents=1, y_size=5, fov_x=3, fov_y=3,simple=False):
         super(Grid, self).__init__()
         
         # size of 2D grid
         self.x_size = x_size
         self.y_size = y_size
-        
+        self.n_agents = n_agents  # Add this line to accept the n_agents parameter        
         # initialize the position of the agent
         self.init_agent()
-        
+        self.grid = np.zeros((y_size, x_size), dtype=np.int32)        
         # initialize the mapping status
         self.init_grid()
         

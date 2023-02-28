@@ -1,5 +1,13 @@
 #--------- Training ---------#
-
+import sys
+sys.path.append('/home/bilelmkacher/python_trainings/autonomous-drone-swarm/QL/')
+from Grid import Grid
+import numpy as np
+import random
+import time
+from qtables_pos import QTables
+#from qtables_fov import QTables
+from gym.spaces import Box
 # metrics for each episode
 time_steps = [] # number of time steps in total
 epsilons = [] # epsilon at the end of each episode
@@ -11,14 +19,15 @@ results_mapping = [] # mapping status
 results_count = [] # count status
 total_reward = []
 coverage_threshold = 0.95 #
-
+obs_array =  []
 # parameters for training
 train_episodes = 50000
 max_steps = 5 * 5 * 5
 
 # initialize the environment and the q table
 env = Grid(x_size=5, y_size=5, n_agents=1, fov_x=3, fov_y=3, simple=True)
-q = QTables(observation_space=env.observation_space, action_space=env.action_space, r=0.9999995, lr=0.7)
+#q = QTables(observation_space=env.observation_space, action_space=env.action_space, r=0.9999995, lr=0.7)
+q = QTables(observation_space=env.observation_space, action_space=env.action_space, r=0.9999995, lr=0.7) #, drone_num=1
 
 # training
 for episode in range(train_episodes):
@@ -28,33 +37,62 @@ for episode in range(train_episodes):
     greedy_count = 0 # shared with all agents
     coverage_track = True
     epi_reward = 0
-
-    for step in range(max_steps):
-        actions, greedy_tf = q.get_action(state)
-        next_state, rewards, done, info = env.step(actions)
-        next_state = [arr.astype('int') for arr in next_state] # convert from float to integer
-        q.train(state, next_state, actions, rewards)
-        epi_reward += rewards[0]
-        greedy_count += sum(greedy_tf)
-
-        # check if decent amoung of cells are visited
-        current_coverage = env.get_coverage()
-        if current_coverage >= coverage_threshold and coverage_track:
-            speed.append(step)
-            coverage_track = False
-
-        # check if the task is completed
-        if all(done):
-            time_steps.append(step)
-            break
-        elif step == max_steps - 1:
-            time_steps.append(step)
-            if coverage_track:
-                speed.append(np.nan)
-        
-        # update the observation
-        state = next_state
     
+    for step in range(max_steps):
+        i = 0
+        state = env.reset()
+        #obs_array = np.zeros((10,2))
+        #obs_array[0] = np.array([state[0], state[1]])
+        #obs_array[1] = np.array([state[2], state[3]])
+        #obs_array[2] = np.array([state[4], state[5]])
+        #obs_array[3] = np.array([state[6], state[7]])
+        #obs_array[4] = np.array([state[8], state[9]])
+        #obs_array[5] = np.array([state[10], state[11]])
+        #obs_array[6] = np.array([state[12], state[13]])
+        #obs_array[7] = np.array([state[14], state[15]])
+        #obs_array[8] = np.array([state[16], state[17]])
+        new_obs_array = np.zeros((10,2))
+        new_obs_array[:4] = obs_array[:4]
+        new_obs_array[4] = state[8]
+        new_obs_array[5] = state[9]
+        new_obs_array[6:] = obs_array[4:]
+        #new_obs_array[4] = np.array([state[8], state[9]])
+
+        for i in range(9):
+            #result = q.get_action(state, i, new_obs_array)
+            #actions, greedy_tf = q.get_action(state, i)
+            #actions, greedy_tf = q.get_action(state, i, obs_array)
+            result = q.get_action(state, i, new_obs_array)
+            if result is not None:
+                actions, greedy_tf = result
+            else:
+                actions, greedy_tf = None, None
+
+            next_state, rewards, done, info = env.step(actions)
+            next_state = [arr.astype('int') for arr in next_state] # convert from float to integer
+            #q.train(state, next_state, actions, rewards)
+            q.train(state, next_state, actions, rewards, done, i)
+            epi_reward += rewards[0]
+            greedy_count += sum(greedy_tf)
+
+            # check if decent amoung of cells are visited
+            current_coverage = env.get_coverage()
+            if current_coverage >= coverage_threshold and coverage_track:
+                speed.append(step)
+                coverage_track = False
+
+            # check if the task is completed
+            if all(done):
+                time_steps.append(step)
+                break
+            elif step == max_steps - 1:
+                time_steps.append(step)
+                if coverage_track:
+                    speed.append(np.nan)
+            
+            # update the observation
+            state = next_state
+        
     epsilons.append(q.eps)
     coverage.append(env.get_coverage())
     greedy.append(greedy_count / ((step + 1) * env.n_agents)) # multiply by step
